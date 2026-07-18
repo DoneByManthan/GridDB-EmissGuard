@@ -1,4 +1,4 @@
-# EmissGuard — Vehicle Emission Monitoring with GridDB
+# EmissGuard - Vehicle Emission Monitoring with GridDB
 
 Real-time fleet emission monitoring system. Simulates 8 vehicles across
 Diesel, Petrol, and CNG fuel types. Sensor data (MQ2, MQ135, CO₂, CO,
@@ -13,7 +13,7 @@ TIME_SERIES containers, and served to a live web dashboard.
 Sensor Simulator (8 vehicles × 185 readings = 1,480 rows)
         │  multi_put (batch write)
         ▼
-  GridDB — TIME_SERIES containers (emissguard_vh001 … emissguard_vh008)
+  GridDB - TIME_SERIES containers (emissguard_vh001 … emissguard_vh008)
         │  TQL: select * order by timestamp desc limit N
         ▼
   Flask REST API  ──────────────────►  Dashboard (http://localhost:5050)
