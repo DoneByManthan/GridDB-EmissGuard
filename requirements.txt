@@ -1,0 +1,16 @@
+# EmissGuard — Python dependencies
+# Install inside a virtual environment:
+#   python3 -m venv --system-site-packages venv
+#   source venv/bin/activate
+#   pip install -r requirements.txt
+#
+# NOTE: griddb_python is NOT pip-installed.
+# It is installed system-wide by the GridDB Ubuntu package.
+# The --system-site-packages flag makes it visible inside the venv.
+
+flask==3.0.3
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.5.0
+matplotlib==3.9.0
+seaborn==0.13.2

@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EmissGuard — Vehicle Emission Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+  <style>
+    /* ── Design tokens ──────────────────────────────────────────────────── */
+    :root {
+      --bg: #0D0F14;
+      --surface: #1A1D24;
+      --surface2: #222630;
+      --border: #2A2F3D;
+      --text: #E2E8F0;
+      --muted: #8892A4;
+      --safe: #22C55E;
+      --moderate: #F59E0B;
+      --poor: #F97316;
+      --dangerous: #EF4444;
+      --accent: #6366F1;
+      --accent2: #818CF8;
+      --font-d: 'Rajdhani', sans-serif;
+      --font-b: 'Inter', sans-serif;
+      --font-m: 'JetBrains Mono', monospace;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 14px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-b);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 56px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-text {
+      font-family: var(--font-d);
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #fff;
+    }
+
+    .logo-text span {
+      color: var(--accent2);
+    }
+
+    .header-sub {
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.7rem;
+      font-family: var(--font-m);
+      color: var(--safe);
+      letter-spacing: 0.06em;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--safe);
+      animation: blink 1.6s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.3;
+        transform: scale(0.65);
+      }
+    }
+
+    .last-ts {
+      font-size: 0.68rem;
+      font-family: var(--font-m);
+      color: var(--muted);
+    }
+
+    .btn-sim {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 6px;
+      font-family: var(--font-d);
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+
+    .btn-sim.start {
+      background: var(--dangerous);
+      color: #fff;
+    }
+
+    .btn-sim.stop {
+      background: var(--safe);
+      color: #000;
+    }
+
+    .btn-sim:hover {
+      opacity: 0.82;
+      transform: translateY(-1px);
+    }
+
+    /* ── Fleet strip ─────────────────────────────────────────────────────── */
+    .fleet-strip {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .fstat {
+      background: var(--surface);
+      padding: 11px 20px;
+    }
+
+    .fstat-label {
+      font-size: 0.62rem;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .fstat-value {
+      font-family: var(--font-d);
+      font-size: 1.55rem;
+      font-weight: 700;
+      line-height: 1.15;
+    }
+
+    .fstat-sub {
+      font-size: 0.65rem;
+      color: var(--muted);
+      font-family: var(--font-m);
+    }
+
+    /* ── Layout ──────────────────────────────────────────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: 255px 1fr;
+      min-height: calc(100vh - 118px);
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────────────────── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 14px 0;
+    }
+
+    .sb-title {
+      font-size: 0.62rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0 16px 10px;
+    }
+
+    .sb-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: all 0.14s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sb-item:hover {
+      background: var(--surface2);
+    }
+
+    .sb-item.active {
+      background: var(--surface2);
+      border-left-color: var(--accent);
+    }
+
+    .sb-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .sb-name {
+      font-family: var(--font-d);
+      font-weight: 600;
+      font-size: 0.9rem;
+      letter-spacing: 0.03em;
+      flex: 1;
+    }
+
+    .sb-type {
+      font-size: 0.62rem;
+      color: var(--muted);
+    }
+
+    .sb-score {
+      font-family: var(--font-m);
+      font-size: 0.76rem;
+      font-weight: 500;
+    }
+
+    /* ── Main ────────────────────────────────────────────────────────────── */
+    .main {
+      overflow-y: auto;
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* ── Cards grid ──────────────────────────────────────────────────────── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+      gap: 13px;
+    }
+
+    .vcard {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 15px;
+      cursor: pointer;
+      transition: all 0.18s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .vcard:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      border-color: var(--accent);
+    }
+
+    .vcard-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      border-radius: 10px 10px 0 0;
+    }
+
+    .vcard-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 11px;
+    }
+
+    .vcard-name {
+      font-family: var(--font-d);
+      font-weight: 700;
+      font-size: 1.02rem;
+      letter-spacing: 0.04em;
+    }
+
+    .vcard-meta {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    .badge {
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-family: var(--font-d);
+      font-weight: 600;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+    }
+
+    .sensors-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+      margin-bottom: 11px;
+    }
+
+    .scell {
+      background: var(--bg);
+      border-radius: 6px;
+      padding: 6px 9px;
+    }
+
+    .scell-label {
+      font-size: 0.58rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .scell-value {
+      font-family: var(--font-m);
+      font-size: 0.86rem;
+      font-weight: 500;
+      margin-top: 2px;
+    }
+
+    .aqi-wrap {
+      margin-top: 3px;
+    }
+
+    .aqi-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.63rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .aqi-track {
+      height: 5px;
+      background: var(--bg);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .aqi-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    /* ── Section block ───────────────────────────────────────────────────── */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 17px;
+    }
+
+    .section-title {
+      font-family: var(--font-d);
+      font-size: 0.88rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title::before {
+      content: '';
+      display: block;
+      width: 3px;
+      height: 13px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    /* ── Correlations ────────────────────────────────────────────────────── */
+    .corr-empty {
+      font-size: 0.78rem;
+      color: var(--safe);
+      font-family: var(--font-m);
+    }
+
+    .corr-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .corr-item:last-child {
+      border-bottom: none;
+    }
+
+    .corr-arrow {
+      font-family: var(--font-m);
+      font-size: 0.72rem;
+      color: var(--poor);
+      white-space: nowrap;
+      padding-top: 2px;
+    }
+
+    .corr-vid {
+      font-family: var(--font-d);
+      font-weight: 600;
+      color: var(--accent2);
+      font-size: 0.78rem;
+    }
+
+    .corr-text {
+      font-size: 0.76rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* ── Timeline ────────────────────────────────────────────────────────── */
+    .tl-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.76rem;
+    }
+
+    .tl-item:last-child {
+      border-bottom: none;
+    }
+
+    .tl-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .tl-ts {
+      font-family: var(--font-m);
+      font-size: 0.66rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .tl-name {
+      font-family: var(--font-d);
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+
+    .tl-badge {
+      font-family: var(--font-m);
+      font-size: 0.68rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+
+    /* ── Detail panel ────────────────────────────────────────────────────── */
+    .detail {
+      display: none;
+      flex-direction: column;
+      gap: 17px;
+    }
+
+    .detail.visible {
+      display: flex;
+    }
+
+    .detail-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .detail-title {
+      font-family: var(--font-d);
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .back-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 12px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.14s;
+    }
+
+    .back-btn:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
+
+    /* ── Stats row ───────────────────────────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 11px;
+    }
+
+    .stat-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 15px;
+    }
+
+    .stat-label {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    .stat-value {
+      font-family: var(--font-d);
+      font-size: 1.38rem;
+      font-weight: 700;
+    }
+
+    .stat-unit {
+      font-size: 0.65rem;
+      color: var(--muted);
+      font-family: var(--font-m);
+    }
+
+    /* ── Tabs ────────────────────────────────────────────────────────────── */
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+      width: fit-content;
+    }
+
+    .tab-btn {
+      padding: 5px 15px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 6px;
+      font-family: var(--font-d);
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.14s;
+    }
+
+    .tab-btn.active {
+      background: var(--surface2);
+      color: var(--text);
+    }
+
+    /* ── Chart containers ────────────────────────────────────────────────── */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 13px;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 210px;
+    }
+
+    /* ── Exhaust plume bg ────────────────────────────────────────────────── */
+    .plume-bg {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      width: 300px;
+      height: 300px;
+      pointer-events: none;
+      opacity: 0.035;
+      z-index: 0;
+    }
+
+    /* ── Color helpers ───────────────────────────────────────────────────── */
+    .c-safe {
+      color: var(--safe);
+    }
+
+    .c-moderate {
+      color: var(--moderate);
+    }
+
+    .c-poor {
+      color: var(--poor);
+    }
+
+    .c-dangerous {
+      color: var(--dangerous);
+    }
+
+    .bg-safe {
+      background: rgba(34, 197, 94, 0.14);
+      color: var(--safe);
+    }
+
+    .bg-moderate {
+      background: rgba(245, 158, 11, 0.14);
+      color: var(--moderate);
+    }
+
+    .bg-poor {
+      background: rgba(249, 115, 22, 0.14);
+      color: var(--poor);
+    }
+
+    .bg-dangerous {
+      background: rgba(239, 68, 68, 0.14);
+      color: var(--dangerous);
+    }
+
+    @media (max-width:900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .fleet-strip {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .chart-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Exhaust plume background -->
+  <svg class="plume-bg" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="140" cy="260" r="16" fill="#6366F1">
+      <animate attributeName="cy" values="260;90;260" dur="4s" repeatCount="indefinite" />
+      <animate attributeName="r" values="16;4;16" dur="4s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.8;0;0.8" dur="4s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="122" cy="260" r="12" fill="#818CF8">
+      <animate attributeName="cy" values="260;75;260" dur="5.2s" begin="0.8s" repeatCount="indefinite" />
+      <animate attributeName="r" values="12;3;12" dur="5.2s" begin="0.8s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.7;0;0.7" dur="5.2s" begin="0.8s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="158" cy="260" r="9" fill="#A5B4FC">
+      <animate attributeName="cy" values="260;110;260" dur="3.6s" begin="1.5s" repeatCount="indefinite" />
+      <animate attributeName="r" values="9;2;9" dur="3.6s" begin="1.5s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.6;0;0.6" dur="3.6s" begin="1.5s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="140" cy="260" r="20" fill="#4F46E5">
+      <animate attributeName="cy" values="260;55;260" dur="6.8s" begin="2s" repeatCount="indefinite" />
+      <animate attributeName="r" values="20;5;20" dur="6.8s" begin="2s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.5;0;0.5" dur="6.8s" begin="2s" repeatCount="indefinite" />
+    </circle>
+  </svg>
+
+  <!-- ── Header ──────────────────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-left">
+      <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+        <rect width="30" height="30" rx="7" fill="#1E1B4B" />
+        <path d="M8 22 Q11 11 15 9 Q19 7 22 15" stroke="#818CF8" stroke-width="2" fill="none" stroke-linecap="round" />
+        <circle cx="15" cy="22" r="3" fill="#6366F1" />
+        <circle cx="15" cy="22" r="5.5" stroke="#6366F1" stroke-width="1" fill="none" opacity="0.35" />
+      </svg>
+      <div>
+        <div class="logo-text">Emiss<span>Guard</span></div>
+        <div class="header-sub">Fleet Emission Monitoring System</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge">
+        <div class="live-dot"></div>LIVE
+      </div>
+      <div class="last-ts" id="lastTs">--:--:--</div>
+      <button class="btn-sim start" id="simBtn" onclick="toggleSim()">⚠ Run Simulation</button>
+    </div>
+  </header>
+
+  <!-- ── Fleet strip ──────────────────────────────────────────────────────────── -->
+  <div class="fleet-strip">
+    <div class="fstat">
+      <div class="fstat-label">Fleet Emission Index</div>
+      <div class="fstat-value" id="fleetScore">—</div>
+      <div class="fstat-sub" id="fleetLabel">Loading...</div>
+    </div>
+    <div class="fstat">
+      <div class="fstat-label">Vehicles Monitored</div>
+      <div class="fstat-value">8</div>
+      <div class="fstat-sub">Active sensors</div>
+    </div>
+    <div class="fstat">
+      <div class="fstat-label">In Safe Zone</div>
+      <div class="fstat-value c-safe" id="safeCount">—</div>
+      <div class="fstat-sub">AQI &lt; 20</div>
+    </div>
+    <div class="fstat">
+      <div class="fstat-label">Alerts Active</div>
+      <div class="fstat-value c-dangerous" id="alertCount">—</div>
+      <div class="fstat-sub">Poor or Dangerous</div>
+    </div>
+    <div class="fstat">
+      <div class="fstat-label">Correlations</div>
+      <div class="fstat-value c-poor" id="corrCount">—</div>
+      <div class="fstat-sub">Cross-sensor links</div>
+    </div>
+  </div>
+
+  <!-- ── Layout ───────────────────────────────────────────────────────────────── -->
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sb-title">Fleet Vehicles</div>
+      <div id="sbList"></div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+
+      <!-- ── Fleet overview ─────────────────────────────────────────────────── -->
+      <div id="fleetView">
+
+        <!-- Vehicle cards -->
+        <div class="cards-grid" id="cardsGrid"></div>
+
+        <!-- Correlations -->
+        <div class="section">
+          <div class="section-title">Emission Correlations</div>
+          <div id="corrList">
+            <div class="corr-empty">✓ No emission correlations detected.</div>
+          </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="section">
+          <div class="section-title">Emission Event Timeline</div>
+          <div id="tlList">
+            <div style="color:var(--muted);font-size:0.78rem">Loading events...</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Vehicle detail ─────────────────────────────────────────────────── -->
+      <div id="detailView" class="detail">
+
+        <div class="detail-header">
+          <button class="back-btn" onclick="showFleet()">← All Vehicles</button>
+          <div>
+            <div class="detail-title" id="dTitle">—</div>
+            <div style="font-size:0.7rem;color:var(--muted)" id="dMeta">—</div>
+          </div>
+          <div id="dBadge" class="badge" style="margin-left:auto">—</div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-row" id="dStats"></div>
+
+        <!-- Tab bar -->
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="switchTab('primary')">Primary Sensors</button>
+          <button class="tab-btn" onclick="switchTab('gases')">Emission Gases</button>
+          <button class="tab-btn" onclick="switchTab('env')">Temp / Humidity</button>
+        </div>
+
+        <!-- Tab: Primary Sensors -->
+        <div id="tabPrimary">
+          <div class="chart-grid">
+            <div class="section">
+              <div class="section-title">MQ2 — LPG / Methane / Smoke</div>
+              <div class="chart-wrap"><canvas id="cMQ2"></canvas></div>
+            </div>
+            <div class="section">
+              <div class="section-title">MQ135 — Air Quality Index</div>
+              <div class="chart-wrap"><canvas id="cMQ135"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Emission Gases -->
+        <div id="tabGases" style="display:none">
+          <div class="chart-grid">
+            <div class="section">
+              <div class="section-title">CO₂ Concentration (ppm)</div>
+              <div class="chart-wrap"><canvas id="cCO2"></canvas></div>
+            </div>
+            <div class="section">
+              <div class="section-title">CO Level (ppm)</div>
+              <div class="chart-wrap"><canvas id="cCO"></canvas></div>
+            </div>
+          </div>
+          <div class="chart-grid" style="margin-top:13px">
+            <div class="section">
+              <div class="section-title">NOx (ppb)</div>
+              <div class="chart-wrap"><canvas id="cNOx"></canvas></div>
+            </div>
+            <div class="section">
+              <div class="section-title">PM2.5 (µg/m³)</div>
+              <div class="chart-wrap"><canvas id="cPM25"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Env -->
+        <div id="tabEnv" style="display:none">
+          <div class="chart-grid">
+            <div class="section">
+              <div class="section-title">Exhaust Temperature (°C)</div>
+              <div class="chart-wrap"><canvas id="cTemp"></canvas></div>
+            </div>
+            <div class="section">
+              <div class="section-title">Ambient Humidity (%)</div>
+              <div class="chart-wrap"><canvas id="cHum"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ── JavaScript ───────────────────────────────────────────────────────────── -->
+  <script>
+    const DEMO_MODE = true;
+
+    const demoFleet = {
+      risk_score: 43,
+      risk_label: "Moderate",
+      risk_color: "#F59E0B",
+      correlations: [
+        {
+          vehicle_id: "vh005",
+          source: "CO₂",
+          target: "PM2.5",
+          message: "High CO₂ concentration is accompanied by increased PM2.5 emission."
+        },
+        {
+          vehicle_id: "vh004",
+          source: "MQ135",
+          target: "NOx",
+          message: "Poor air quality sensor shows elevated NOx."
+        }
+      ],
+      vehicles: {
+        vh001: { status: "Safe", aqi_score: 12, latest: { mq2: 165, mq135: 102, co2_ppm: 420, pm25_ugm3: 8.4 } },
+        vh002: { status: "Moderate", aqi_score: 34, latest: { mq2: 248, mq135: 180, co2_ppm: 590, pm25_ugm3: 18.6 } },
+        vh003: { status: "Safe", aqi_score: 15, latest: { mq2: 172, mq135: 110, co2_ppm: 445, pm25_ugm3: 9.8 } },
+        vh004: { status: "Poor", aqi_score: 63, latest: { mq2: 380, mq135: 295, co2_ppm: 920, pm25_ugm3: 42.3 } },
+        vh005: { status: "Dangerous", aqi_score: 91, latest: { mq2: 520, mq135: 430, co2_ppm: 1420, pm25_ugm3: 81.5 } },
+        vh006: { status: "Moderate", aqi_score: 40, latest: { mq2: 260, mq135: 205, co2_ppm: 640, pm25_ugm3: 21.2 } },
+        vh007: { status: "Safe", aqi_score: 18, latest: { mq2: 180, mq135: 115, co2_ppm: 455, pm25_ugm3: 10.1 } },
+        vh008: { status: "Poor", aqi_score: 70, latest: { mq2: 410, mq135: 330, co2_ppm: 1050, pm25_ugm3: 55.8 } }
+      }
+    };
+
+    const demoMeta = {
+      vh001: { display_name: "Vehicle 01", fuel_type: "Petrol", vehicle_type: "Car" },
+      vh002: { display_name: "Vehicle 02", fuel_type: "Diesel", vehicle_type: "SUV" },
+      vh003: { display_name: "Vehicle 03", fuel_type: "Petrol", vehicle_type: "Sedan" },
+      vh004: { display_name: "Vehicle 04", fuel_type: "Diesel", vehicle_type: "Truck" },
+      vh005: { display_name: "Vehicle 05", fuel_type: "Diesel", vehicle_type: "Bus" },
+      vh006: { display_name: "Vehicle 06", fuel_type: "CNG", vehicle_type: "Van" },
+      vh007: { display_name: "Vehicle 07", fuel_type: "Petrol", vehicle_type: "Car" },
+      vh008: { display_name: "Vehicle 08", fuel_type: "Diesel", vehicle_type: "Truck" }
+    };
+    /* ── State ──────────────────────────────────────────────────────────────────── */
+    let fleetData = {};
+    let meta = {};
+    let simActive = false;
+    let selectedVid = null;
+    let charts = {};
+
+    /* ── Helpers ────────────────────────────────────────────────────────────────── */
+    const SC = {
+      Safe: '#22C55E', Moderate: '#F59E0B',
+      Poor: '#F97316', Dangerous: '#EF4444', Unknown: '#6B7280'
+    };
+    const BC = {
+      Safe: 'bg-safe', Moderate: 'bg-moderate',
+      Poor: 'bg-poor', Dangerous: 'bg-dangerous'
+    };
+    const cc = s => SC[s] || '#6B7280';
+    const bc = s => BC[s] || '';
+    const fmtTs = iso => iso ? new Date(iso).toLocaleTimeString('en-IN', { hour12: false }) : '—';
+
+    /* ── Chart factory ──────────────────────────────────────────────────────────── */
+    function mkChart(id, label, color, unit) {
+      const el = document.getElementById(id);
+      if (!el) return null;
+      if (charts[id]) charts[id].destroy();
+      charts[id] = new Chart(el, {
+        type: 'line',
+        data: {
+          labels: [], datasets: [{
+            label, data: [],
+            borderColor: color, backgroundColor: color + '18',
+            borderWidth: 1.8, pointRadius: 0, tension: 0.4, fill: true
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          animation: { duration: 300 },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1A1D24', borderColor: '#2A2F3D', borderWidth: 1,
+              titleColor: '#8892A4', bodyColor: '#E2E8F0',
+              bodyFont: { family: 'JetBrains Mono', size: 11 },
+              callbacks: { label: c => ` ${c.parsed.y.toFixed(2)} ${unit}` }
+            }
+          },
+          scales: {
+            x: { ticks: { color: '#8892A4', font: { size: 9, family: 'JetBrains Mono' }, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: '#2A2F3D' } },
+            y: { ticks: { color: '#8892A4', font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: '#2A2F3D' } }
+          }
+        }
+      });
+    }
+
+    function pushChart(id, labels, data) {
+      const c = charts[id]; if (!c) return;
+      c.data.labels = labels; c.data.datasets[0].data = data; c.update('none');
+    }
+
+    /* ── Build fleet cards ──────────────────────────────────────────────────────── */
+    function buildCards(data) {
+      const grid = document.getElementById('cardsGrid');
+      grid.innerHTML = '';
+      for (const [vid, info] of Object.entries(data.vehicles)) {
+        const m = meta[vid] || {};
+        const st = info.status || 'Unknown';
+        const sc = info.aqi_score || 0;
+        const lt = info.latest || {};
+        const cl = cc(st);
+        const card = document.createElement('div');
+        card.className = 'vcard';
+        card.style.borderColor = cl + '44';
+        card.onclick = () => loadDetail(vid);
+        card.innerHTML = `
+      <div class="vcard-bar" style="background:${cl};opacity:0.8"></div>
+      <div class="vcard-head">
+        <div>
+          <div class="vcard-name">${m.display_name || vid}</div>
+          <div class="vcard-meta">${m.fuel_type || ''} · ${m.vehicle_type || ''}</div>
+        </div>
+        <span class="badge ${bc(st)}">${st.toUpperCase()}</span>
+      </div>
+      <div class="sensors-grid">
+        <div class="scell"><div class="scell-label">MQ2</div><div class="scell-value">${(lt.mq2 || 0).toFixed(0)}</div></div>
+        <div class="scell"><div class="scell-label">MQ135</div><div class="scell-value">${(lt.mq135 || 0).toFixed(0)}</div></div>
+        <div class="scell"><div class="scell-label">CO₂ ppm</div><div class="scell-value">${(lt.co2_ppm || 0).toFixed(0)}</div></div>
+        <div class="scell"><div class="scell-label">PM2.5 µg/m³</div><div class="scell-value">${(lt.pm25_ugm3 || 0).toFixed(1)}</div></div>
+      </div>
+      <div class="aqi-wrap">
+        <div class="aqi-row"><span>EmissGuard AQI</span><span style="color:${cl};font-family:var(--font-m)">${sc}/100</span></div>
+        <div class="aqi-track"><div class="aqi-fill" style="width:${sc}%;background:${cl}"></div></div>
+      </div>`;
+        grid.appendChild(card);
+      }
+    }
+
+    /* ── Sidebar ────────────────────────────────────────────────────────────────── */
+    function buildSidebar(data) {
+      const sb = document.getElementById('sbList');
+      sb.innerHTML = '';
+      for (const [vid, info] of Object.entries(data.vehicles)) {
+        const m = meta[vid] || {};
+        const st = info.status || 'Unknown';
+        const cl = cc(st);
+        const el = document.createElement('div');
+        el.className = 'sb-item' + (selectedVid === vid ? ' active' : '');
+        el.id = `sb-${vid}`;
+        el.onclick = () => loadDetail(vid);
+        el.innerHTML = `
+      <div class="sb-dot" style="background:${cl}"></div>
+      <div>
+        <div class="sb-name">${m.display_name || vid}</div>
+        <div class="sb-type">${m.fuel_type || ''}</div>
+      </div>
+      <div class="sb-score" style="color:${cl}">${info.aqi_score || 0}</div>`;
+        sb.appendChild(el);
+      }
+    }
+
+    /* ── Fleet strip ────────────────────────────────────────────────────────────── */
+    function updateStrip(data) {
+      const sc = data.risk_score || 0;
+      const cl = data.risk_color || '#6B7280';
+      document.getElementById('fleetScore').textContent = sc;
+      document.getElementById('fleetScore').style.color = cl;
+      document.getElementById('fleetLabel').textContent = data.risk_label || '—';
+      const statuses = Object.values(data.vehicles || {}).map(v => v.status);
+      document.getElementById('safeCount').textContent = statuses.filter(s => s === 'Safe').length;
+      document.getElementById('alertCount').textContent = statuses.filter(s => s === 'Poor' || s === 'Dangerous').length;
+      document.getElementById('corrCount').textContent = (data.correlations || []).length;
+    }
+
+    /* ── Correlations ───────────────────────────────────────────────────────────── */
+    function updateCorr(data) {
+      const list = document.getElementById('corrList');
+      const cs = data.correlations || [];
+      if (!cs.length) { list.innerHTML = '<div class="corr-empty">✓ No emission correlations detected.</div>'; return; }
+      list.innerHTML = cs.map(c => `
+    <div class="corr-item">
+      <div class="corr-arrow">${c.source} → ${c.target}</div>
+      <div>
+        <div class="corr-vid">${meta[c.vehicle_id]?.display_name || c.vehicle_id}</div>
+        <div class="corr-text">${c.message}</div>
+      </div>
+    </div>`).join('');
+    }
+
+    /* ── Timeline ───────────────────────────────────────────────────────────────── */
+    async function loadTimeline() {
+      try {
+        const ev = await (await fetch('/api/timeline')).json();
+        const l = document.getElementById('tlList');
+        if (!ev.length) { l.innerHTML = '<div style="color:var(--muted);font-size:0.78rem">No emission events recorded yet.</div>'; return; }
+        l.innerHTML = ev.slice(0, 20).map(e => {
+          const cl = cc(e.status);
+          return `<div class="tl-item">
+        <div class="tl-dot" style="background:${cl}"></div>
+        <div class="tl-ts">${fmtTs(e.timestamp)}</div>
+        <div class="tl-name">${e.display_name}</div>
+        <div style="color:var(--muted);font-size:0.65rem">${e.fuel_type}</div>
+        <div class="tl-badge ${bc(e.status)}">${e.status}</div>
+      </div>`;
+        }).join('');
+      } catch (e) { console.warn('Timeline error:', e); }
+    }
+
+    /* ── Detail view ────────────────────────────────────────────────────────────── */
+    async function loadDetail(vid) {
+      selectedVid = vid;
+      document.getElementById('fleetView').style.display = 'none';
+      document.getElementById('detailView').classList.add('visible');
+      document.querySelectorAll('.sb-item').forEach(e => e.classList.remove('active'));
+      document.getElementById(`sb-${vid}`)?.classList.add('active');
+
+      try {
+        const [vd, sd] = await Promise.all([
+          fetch(`/api/vehicle/${vid}`).then(r => r.json()),
+          fetch(`/api/stats/${vid}`).then(r => r.json())
+        ]);
+
+        const m = meta[vid] || {};
+        const st = vd.status?.status || 'Unknown';
+        const sc = vd.status?.aqi_score || 0;
+        const cl = cc(st);
+
+        document.getElementById('dTitle').textContent = m.display_name || vid;
+        document.getElementById('dMeta').textContent = `${m.fuel_type} · ${m.vehicle_type} · ${m.description || ''}`;
+        const badge = document.getElementById('dBadge');
+        badge.textContent = st.toUpperCase();
+        badge.className = `badge ${bc(st)}`;
+
+        // Stats row
+        document.getElementById('dStats').innerHTML = [
+          { label: 'AQI Score', value: sc, unit: '/ 100', color: cl },
+          { label: 'CO₂ Avg', value: sd.co2_ppm?.avg || 0, unit: 'ppm', color: '#818CF8' },
+          { label: 'CO Avg', value: sd.co_ppm?.avg || 0, unit: 'ppm', color: '#F97316' },
+          { label: 'PM2.5 Max', value: sd.pm25_ugm3?.max || 0, unit: 'µg/m³', color: '#EF4444' },
+        ].map(s => `
+      <div class="stat-box">
+        <div class="stat-label">${s.label}</div>
+        <div class="stat-value" style="color:${s.color}">${parseFloat(s.value).toFixed(1)}</div>
+        <div class="stat-unit">${s.unit}</div>
+      </div>`).join('');
+
+        // Charts
+        const h = vd.history || [];
+        const lb = h.map(r => fmtTs(r.timestamp));
+
+        mkChart('cMQ2', 'MQ2', '#6366F1', ''); pushChart('cMQ2', lb, h.map(r => r.mq2));
+        mkChart('cMQ135', 'MQ135', '#818CF8', ''); pushChart('cMQ135', lb, h.map(r => r.mq135));
+        mkChart('cCO2', 'CO₂', '#22C55E', 'ppm'); pushChart('cCO2', lb, h.map(r => r.co2_ppm));
+        mkChart('cCO', 'CO', '#F97316', 'ppm'); pushChart('cCO', lb, h.map(r => r.co_ppm));
+        mkChart('cNOx', 'NOx', '#EF4444', 'ppb'); pushChart('cNOx', lb, h.map(r => r.nox_ppb));
+        mkChart('cPM25', 'PM2.5', '#F59E0B', 'µg/m³'); pushChart('cPM25', lb, h.map(r => r.pm25_ugm3));
+        mkChart('cTemp', 'Temp', '#F97316', '°C'); pushChart('cTemp', lb, h.map(r => r.temperature));
+        mkChart('cHum', 'Hum', '#22C55E', '%'); pushChart('cHum', lb, h.map(r => r.humidity));
+
+      } catch (e) { console.error('Detail error:', e); }
+    }
+
+    function showFleet() {
+      selectedVid = null;
+      document.getElementById('fleetView').style.display = '';
+      document.getElementById('detailView').classList.remove('visible');
+      document.querySelectorAll('.sb-item').forEach(e => e.classList.remove('active'));
+    }
+
+    /* ── Tab switching ──────────────────────────────────────────────────────────── */
+    function switchTab(tab) {
+      const tabs = { primary: 'tabPrimary', gases: 'tabGases', env: 'tabEnv' };
+      Object.values(tabs).forEach(id => document.getElementById(id).style.display = 'none');
+      document.getElementById(tabs[tab]).style.display = '';
+      document.querySelectorAll('.tab-btn').forEach((b, i) => {
+        b.classList.toggle('active', ['primary', 'gases', 'env'][i] === tab);
+      });
+    }
+
+    /* ── Poll fleet ─────────────────────────────────────────────────────────────── */
+    async function pollFleet() {
+
+      if (DEMO_MODE) {
+
+        fleetData = demoFleet;
+
+        buildSidebar(demoFleet);
+        buildCards(demoFleet);
+        updateStrip(demoFleet);
+        updateCorr(demoFleet);
+
+        document.getElementById("lastTs").textContent =
+          new Date().toLocaleTimeString();
+
+        return;
+      }
+
+      try {
+        const data = await (await fetch("/api/fleet")).json();
+
+        fleetData = data;
+
+        updateStrip(data);
+        buildSidebar(data);
+        updateCorr(data);
+
+        if (!selectedVid)
+          buildCards(data);
+        else
+          loadDetail(selectedVid);
+
+        document.getElementById("lastTs").textContent =
+          new Date().toLocaleTimeString();
+
+      } catch (e) {
+        console.log(e);
+      }
+
+    }
+
+    /* ── Simulation toggle ──────────────────────────────────────────────────────── */
+    async function toggleSim() {
+      const btn = document.getElementById('simBtn');
+      if (!simActive) {
+        simActive = true;
+        btn.textContent = '✓ Issue Resolved';
+        btn.className = 'btn-sim stop';
+        await fetch('/api/sim/start', { method: 'POST' });
+      } else {
+        simActive = false;
+        btn.textContent = '⚠ Run Simulation';
+        btn.className = 'btn-sim start';
+        await fetch('/api/sim/resolve', { method: 'POST' });
+      }
+    }
+
+    /* ── Init ───────────────────────────────────────────────────────────────────── */
+    async function init() {
+
+      if (DEMO_MODE) {
+
+        meta = demoMeta;
+
+        pollFleet();
+
+        loadTimelineDemo();
+
+        setInterval(() => {
+
+          randomizeDemo();
+
+          pollFleet();
+
+          loadTimelineDemo();
+
+        }, 4000);
+
+        return;
+      }
+
+      try {
+        meta = await (await fetch("/api/vehicles")).json();
+      } catch (e) { }
+
+      await pollFleet();
+
+      await loadTimeline();
+
+      setInterval(async () => {
+
+        await pollFleet();
+
+        if (!selectedVid)
+          await loadTimeline();
+
+      }, 4000);
+
+    }
+
+    function randomizeDemo() {
+
+      Object.values(demoFleet.vehicles).forEach(v => {
+
+        v.latest.mq2 += Math.random() * 20 - 10;
+        v.latest.mq135 += Math.random() * 10 - 5;
+        v.latest.co2_ppm += Math.random() * 60 - 30;
+        v.latest.pm25_ugm3 += Math.random() * 5 - 2.5;
+
+      });
+
+    }
+
+    function loadTimelineDemo() {
+
+      document.getElementById("tlList").innerHTML = `
+    <div class="tl-item">
+      <div class="tl-dot" style="background:#EF4444"></div>
+      <div class="tl-ts">${new Date().toLocaleTimeString()}</div>
+      <div class="tl-name">Vehicle 05</div>
+      <div>CO₂ exceeded threshold</div>
+      <div class="tl-badge bg-dangerous">Dangerous</div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot" style="background:#F97316"></div>
+      <div class="tl-ts">${new Date().toLocaleTimeString()}</div>
+      <div class="tl-name">Vehicle 04</div>
+      <div>PM2.5 rising</div>
+      <div class="tl-badge bg-poor">Poor</div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot" style="background:#F59E0B"></div>
+      <div class="tl-ts">${new Date().toLocaleTimeString()}</div>
+      <div class="tl-name">Vehicle 02</div>
+      <div>Moderate emission</div>
+      <div class="tl-badge bg-moderate">Moderate</div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot" style="background:#22C55E"></div>
+      <div class="tl-ts">${new Date().toLocaleTimeString()}</div>
+      <div class="tl-name">Vehicle 01</div>
+      <div>Normal operation</div>
+      <div class="tl-badge bg-safe">Safe</div>
+    </div>
+    `;
+    }
+
+
+    init();
+  </script>
+</body>
+
+</html>
