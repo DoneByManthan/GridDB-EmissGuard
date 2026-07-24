@@ -11,7 +11,7 @@ import time
 import argparse
 from datetime import datetime, timezone
 
-import griddb_python as griddb
+from griddb_init import griddb
 
 import sensor_simulator
 from vehicles import VEHICLES

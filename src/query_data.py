@@ -5,7 +5,7 @@
 import os
 import sys
 
-import griddb_python as griddb
+from griddb_init import griddb
 
 from vehicles import VEHICLES, EMISSION_RULES, SENSOR_WEIGHTS, VEHICLE_WEIGHTS, aqi_label
 

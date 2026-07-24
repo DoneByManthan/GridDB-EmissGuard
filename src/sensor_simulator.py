@@ -99,7 +99,7 @@ def generate_reading(vehicle_id, status="Safe", progress=0.0, timestamp=None):
 
     return {
         "vehicle_id":  vehicle_id,
-        "timestamp":   timestamp.isoformat() + "Z",
+        "timestamp": timestamp.isoformat(),
         "mq2":         round(vals["mq2"],         1),
         "mq135":       round(vals["mq135"],       1),
         "co2_ppm":     round(vals["co2_ppm"],     1),

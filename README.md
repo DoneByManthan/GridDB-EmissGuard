@@ -90,6 +90,10 @@ python insert_data.py --live
 
 # 5. Optional: live emission simulation
 python simulate_emission.py
+
+# 6. Run the ML pipeline (train 3 classifiers on GridDB data)
+python ml_pipeline.py
+# Outputs saved to ml/outputs/
 ```
 
 ---
@@ -111,6 +115,52 @@ python simulate_emission.py
 
 ---
 
+## ML Pipeline
+
+The ML pipeline reads data directly from GridDB, engineers features, trains
+three scikit-learn classifiers, and saves model artifacts to `ml/outputs/`.
+
+```bash
+cd src
+
+# Fetch from GridDB, train all three models, save outputs
+python ml_pipeline.py
+
+# Reuse a previously exported CSV (no GridDB connection needed)
+python ml_pipeline.py --from-csv
+```
+
+### Three ML Tasks
+
+| Task | Algorithm | Target |
+|------|-----------|--------|
+| Binary classification | Logistic Regression | Safe (0) vs Unsafe (1) |
+| Multi-class classification | Random Forest | Safe / Moderate / Poor / Dangerous |
+| Risk level classification | Gradient Boosting | Low / Medium / High risk band |
+
+### Feature Set (11 features)
+
+Raw sensors: `mq2`, `mq135`, `co2_ppm`, `co_ppm`, `nox_ppb`, `pm25_ugm3`, `temperature`, `humidity`
+
+Derived features:
+- `pulse_ratio`   = mq2 / mq135 (combustion balance indicator)
+- `co_nox_ratio`  = co_ppm / (nox_ppb + 1) (rich-vs-lean combustion proxy)
+- `pm_co_product` = pm25_ugm3 * co_ppm (combined incomplete-combustion score)
+
+### Output Files (`ml/outputs/`)
+
+| File | Description |
+|------|-------------|
+| `emissguard_dataset.csv` | Full dataset exported from GridDB |
+| `emissguard_models.pkl` | All three trained models + scaler + label encoder |
+| `aqi_distribution.png` | Dataset class distribution bar chart |
+| `sensor_boxplots.png` | Sensor value distributions by AQI status |
+| `fuel_type_aqi.png` | AQI breakdown per fuel type |
+| `cm_binary.png` | Binary classification confusion matrix |
+| `cm_multiclass.png` | Multi-class confusion matrix |
+| `cm_risk_level.png` | Risk level confusion matrix |
+| `feature_importance.png` | Random Forest feature importance chart |
+
 ## Project Structure
 
 ```
@@ -121,11 +171,12 @@ EmissGuard/
 │   ├── insert_data.py         # GridDB containers + bulk insert + heartbeat
 │   ├── query_data.py          # TQL queries + AQI scoring + correlations
 │   ├── app.py                 # Flask REST API (serves dashboard too)
-│   └── simulate_emission.py   # Live escalation simulation
+│   ├── simulate_emission.py   # Live escalation simulation
+│   └── ml_pipeline.py         # scikit-learn ML pipeline (3 classifiers)
 ├── dashboard/
 │   └── index.html             # EmissGuard monitoring dashboard
 ├── ml/
-│   └── outputs/               # ML artifacts (auto-created)
+│   └── outputs/               # ML plots + model artifacts (auto-created)
 ├── requirements.txt
 ├── setup.sh
 └── README.md

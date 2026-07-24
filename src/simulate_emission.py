@@ -14,7 +14,7 @@ import json
 import urllib.request
 from datetime import datetime, timezone
 
-import griddb_python as griddb
+from griddb_init import griddb
 
 import insert_data
 from vehicles import VEHICLES
